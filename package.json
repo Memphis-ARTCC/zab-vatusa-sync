@@ -5,14 +5,16 @@
 	"type": "module",
 	"author": "Albuquerque ARTCC",
 	"contributors": [
-		"Alexandra Robison"
+		"Alexandra Robison",
+		"Daan Janssen"
 	],
 	"dependencies": {
-		"axios": "^0.21.1",
-		"dotenv": "^10.0.0",
-		"mongoose": "^5.13.3",
-		"mongoose-delete": "^0.5.3",
-		"node-schedule": "^2.0.0"
+		"axios": "^0.27.2",
+		"dotenv": "^16.0.1",
+		"form-data": "^4.0.0",
+		"mongoose": "^6.3.4",
+		"mongoose-delete": "^0.5.4",
+		"node-schedule": "^2.1.0"
 	},
 	"scripts": {
 		"test": "echo \"Error: no test specified\" && exit 1"

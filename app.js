@@ -1,27 +1,27 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
 import schedule from 'node-schedule';
+import FormData from 'form-data';
 import { performance } from 'perf_hooks';
 
 dotenv.config();
 
-const syncRoster = async () => {
+const zabApi = axios.create({
+	baseURL: process.env.ZAB_API_URL,
+	headers: {
+		'Authorization': `Bearer ${process.env.ZAB_API_KEY}`
+	}
+});
 
-	const zabApi = axios.create({
-		baseURL: process.env.ZAB_API_URL,
-		headers: {
-			'Authorization': `Bearer ${process.env.ZAB_API_KEY}`
-		}
-	})
-
+const syncRoster = async() => {
 	const start = performance.now();
 
 	console.log(`Syncing Roster...`);
 	
 	const { data: vatusaData } = await axios.get(`https://api.vatusa.net/v2/facility/ZAB/roster/both?apikey=${process.env.VATUSA_API_KEY}`).catch(console.error);
-	const { data: zabData } = await axios.get(`${process.env.ZAB_API_URL}/controller`);
+	const { data: zabData } = await zabApi.get('/controller');
 	const allZabControllers = [...zabData.data.home, ...zabData.data.visiting];
-	const { data: zabRoles } = await axios.get(`${process.env.ZAB_API_URL}/controller/role`);
+	const { data: zabRoles } = await zabApi.get('/controller/role');
 	const availableRoles = zabRoles.data.map(role => role.code);
 
 	const zabControllers = allZabControllers.map(c => c.cid); // everyone in db
@@ -92,7 +92,65 @@ const syncRoster = async () => {
 	console.log(`...Done!\nFinished in ${Math.round(performance.now() - start)/1000}s\n---`);
 }
 
+const syncTrainingNotes = async() => {
+	const start = performance.now();
+
+	console.log(`Syncing Training Notes...`);
+
+	const { data: zabData } = await zabApi.get('/training/sessions/forsync');
+	if(zabData.data.length) {
+		let ids = [];
+
+		const results = zabData.data.slice(0,10); // limit to 10 items per time for now
+
+		for(const session of results) {
+			let diff = new Date(session.startTime) - new Date(session.endTime);
+			ids.push(session._id);
+
+			const record = {
+				instructor_id: session.instructorCid,
+				session_date: `${session.startTime.split("T")[0]} ${session.startTime.split("T")[1].slice(0,5)}`,
+				position: session.position,
+				duration: session.duration || `${('00' + Math.floor(diff / 3.6e6)).slice(-2)}:${('00' + Math.floor((diff / 3.6e6) / 6e4)).slice(-2)}`,
+				notes: session.studentNotes,
+				location: session.location || 0
+			}
+
+			if(session.progress) record.score = session.progress;
+			if(session.movements) record.movements = session.movements;
+			if(session.ots) record.ots_status = session.ots;
+
+			let formData = new FormData();
+			Object.keys(record).forEach((key) => {
+				formData.append(key, record[key])
+			});
+
+			const formHeaders = formData.getHeaders();
+
+			await axios({
+				url: `https://api.vatusa.net/v2/user/${session.studentCid}/training/record?apikey=${process.env.VATUSA_API_KEY}`,
+				method: "POST",
+				data: formData,
+				headers: formHeaders,
+				transformRequest: data => data
+			})
+			.catch((e) => console.error(e));
+		}
+
+		await zabApi.put('/training/sessions/setsynced', {
+			ids
+		});
+
+		console.log(`...Done! Synced ${ids.length} training notes and finished in ${Math.round(performance.now() - start)/1000}s\n---`);
+	} else {
+		console.log('...No Training Notes that need to be synced')
+		return;
+	}
+}
+
 (() => {
 	syncRoster();
+	syncTrainingNotes();
 	schedule.scheduleJob('*/10 * * * *', syncRoster);
+	schedule.scheduleJob('*/30 * * * *', syncTrainingNotes);
 })();
