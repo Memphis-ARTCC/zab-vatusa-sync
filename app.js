@@ -150,7 +150,7 @@ const syncTrainingNotes = async() => {
 
 (() => {
 	syncRoster();
-	syncTrainingNotes();
+	// syncTrainingNotes();
 	schedule.scheduleJob('*/10 * * * *', syncRoster);
-	schedule.scheduleJob('*/10 * * * *', syncTrainingNotes);
+	// schedule.scheduleJob('*/10 * * * *', syncTrainingNotes);
 })();
