@@ -134,7 +134,7 @@ const syncTrainingNotes = async() => {
 				headers: formHeaders,
 				transformRequest: data => data
 			})
-			.catch((e) => console.error(e));
+			.catch(() => { return });
 		}
 
 		await zabApi.put('/training/sessions/setsynced', {
