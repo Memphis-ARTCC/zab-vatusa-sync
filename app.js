@@ -17,8 +17,8 @@ const syncRoster = async() => {
 	const start = performance.now();
 
 	console.log(`Syncing Roster...`);
-	
-	const { data: vatusaData } = await axios.get(`https://api.vatusa.net/v2/facility/ZAB/roster/both?apikey=${process.env.VATUSA_API_KEY}`).catch(console.error);
+
+	const { data: vatusaData } = await axios.get(`https://api.vatusa.net/v2/facility/zme/roster/both?apikey=${process.env.VATUSA_API_KEY}`).catch(console.error);
 	const { data: zabData } = await zabApi.get('/controller');
 	const allZabControllers = [...zabData.data.home, ...zabData.data.visiting];
 	const { data: zabRoles } = await zabApi.get('/controller/role');
@@ -45,7 +45,7 @@ const syncRoster = async() => {
 	console.log(`Controllers to be made member: ${makeMember.join(', ')}`);
 	console.log(`Controllers to be made visitor: ${makeVisitor.join(', ')}`);
 	console.log(`Controllers to be made home controller: ${makeHome.join(', ')}`);
-	
+
 	const vatusaObject = {};
 
 	for(const user of vatusaData.data) {
@@ -70,7 +70,13 @@ const syncRoster = async() => {
 			roleCodes: (user.membership === 'home') ? assignableRoles : []
 		}
 
-		await zabApi.post(`/controller/${user.cid}`, userData);
+		if (userData.cid == 1461215 || userData.cid == 1118012) {
+			console.log("testing with myself or dylan")
+			await zabApi.post(`/controller/${user.cid}`, userData);
+		}
+		else {
+			console.log(`Would add ${user.fname} ${user.lname} (${user.cid}) to ZME roster, but only adding myself for now`)
+		}
 	}
 
 	for (const cid of makeMember) {
@@ -88,69 +94,12 @@ const syncRoster = async() => {
 	for (const cid of makeHome) {
 		await zabApi.put(`/controller/${cid}/visit`, {vis: false});
 	}
-	
+
 	console.log(`...Done!\nFinished in ${Math.round(performance.now() - start)/1000}s\n---`);
 }
 
-const syncTrainingNotes = async() => {
-	const start = performance.now();
-
-	console.log(`Syncing Training Notes...`);
-
-	const { data: zabData } = await zabApi.get('/training/sessions/forsync');
-	if(zabData.data.length) {
-		let ids = [];
-
-		const results = zabData.data.slice(0,10); // limit to 10 items per time for now
-
-		for(const session of results) {
-			let diff = new Date(session.startTime) - new Date(session.endTime);
-			ids.push(session._id);
-
-			const record = {
-				instructor_id: session.instructorCid,
-				session_date: `${session.startTime.split("T")[0]} ${session.startTime.split("T")[1].slice(0,5)}`,
-				position: session.position,
-				duration: session.duration || `${('00' + Math.floor(diff / 3.6e6)).slice(-2)}:${('00' + Math.floor((diff / 3.6e6) / 6e4)).slice(-2)}`,
-				notes: session.studentNotes,
-				location: session.location || 0
-			}
-
-			if(session.progress) record.score = session.progress;
-			if(session.movements) record.movements = session.movements;
-			if(session.ots) record.ots_status = session.ots;
-
-			let formData = new FormData();
-			Object.keys(record).forEach((key) => {
-				formData.append(key, record[key])
-			});
-
-			const formHeaders = formData.getHeaders();
-
-			await axios({
-				url: `https://api.vatusa.net/v2/user/${session.studentCid}/training/record?apikey=${process.env.VATUSA_API_KEY}`,
-				method: "POST",
-				data: formData,
-				headers: formHeaders,
-				transformRequest: data => data
-			})
-			.catch(() => { return });
-		}
-
-		await zabApi.put('/training/sessions/setsynced', {
-			ids
-		});
-
-		console.log(`...Done! Synced ${ids.length} training notes and finished in ${Math.round(performance.now() - start)/1000}s\n---`);
-	} else {
-		console.log('...No Training Notes that need to be synced')
-		return;
-	}
-}
 
 (() => {
 	syncRoster();
-	// syncTrainingNotes();
 	schedule.scheduleJob('*/10 * * * *', syncRoster);
-	// schedule.scheduleJob('*/10 * * * *', syncTrainingNotes);
 })();
