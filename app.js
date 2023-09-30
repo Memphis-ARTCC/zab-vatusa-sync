@@ -69,14 +69,7 @@ const syncRoster = async() => {
 			vis: (user.membership === 'home') ? false : true,
 			roleCodes: (user.membership === 'home') ? assignableRoles : []
 		}
-
-		if (userData.cid == 1461215 || userData.cid == 1118012) {
-			console.log("testing with myself or dylan")
-			await zabApi.post(`/controller/${user.cid}`, userData);
-		}
-		else {
-			console.log(`Would add ${user.fname} ${user.lname} (${user.cid}) to ZME roster, but only adding myself for now`)
-		}
+		await zabApi.post(`/controller/${user.cid}`, userData);
 	}
 
 	for (const cid of makeMember) {
